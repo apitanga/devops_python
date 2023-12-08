@@ -1,0 +1,87 @@
+#!/bin/bash
+# Name: clone-channels
+# Description: Creates a clone of channel with packages and errata up to today
+# Version: 1
+
+##########FUNCTIONS######################
+
+# This function provdes information on how to use the scripts (what parameters to use, etc)
+usage_func() {
+	echo -e "Invalid option.\nusage: clone-channel.sh -c <Base Channel> -d <Date> -u <user> -p <password> { -l <log> }"
+	echo -e " The Date must be formatted YYYY-MM-DD."
+	echo -e " If not specified a log will be created at /var/log/rhn/channel-clone.log"
+}
+
+##########################################
+
+#################VARIABLES#################
+
+# Global Variables
+#USERN="admin"
+#PASSWD="admin"
+#DATE=
+
+LOGFILE="/var/log/rhn/channel-clone.log"
+MONTH=$(date +"%B" | cut -b 1-3)
+YEAR=$(date +"%Y")
+
+############################################
+
+while getopts "d:u:p:c:l" opt; do
+	case $opt in
+		d) DATE=$OPTARG ;;
+		u) USERN=$OPTARG ;;
+		p) PASSWD=$OPTARG ;;
+		c) BCHANNEL=$OPTARG ;;
+		l) LOGFILE=$OPTARG ;;
+		\?) echo "Invalid option: -$OPTARG" >&2
+		exit 1
+		;;
+	esac
+done
+
+# Script requires RHN Satellite admin user name to be set
+if [ -n "$USERN" ]
+	then
+	# Also requires RHN Satellite admin password name to be set
+	if [ -n "$PASSWD" ]
+		then
+		# ...and lastly the specific upstream channel we wish to clone
+		if [ -n "$BCHANNEL" ]
+			then
+			# if the date is not passed as a parameter, then we assume today
+			if [ -z "$DATE" ]
+				then
+					DATE=$(date +"%Y-%m-%d")
+			fi
+
+			# Initial state
+			CLONES=""
+
+			# Add channels to the end of the CHANNELS variable
+			for i in $(spacecmd -u $USERN -p $PASSWD softwarechannel_listchildchannels $BCHANNEL)
+				do CHILDCHAN=$(echo "$CHILDCHAN $i");
+			done
+
+			export CHANNELS="$BCHANNEL $CHILDCHAN"
+
+			# Build the Channels to Clone
+			for CHANNEL in $CHANNELS
+				do CLONES=$(echo "${CLONES} --channels=${CHANNEL} $(date +"%Y-%m-%d")_${CHANNEL}_${MONTH}_${YEAR}");
+			done
+
+			# Bring on the clones
+			spacewalk-clone-by-date -y -u $USERN -p $PASSWD $CLONES --to_date=${DATE}>$LOGFILE 2>&1
+			
+			else
+			usage_func
+			exit 1
+		fi
+		else	
+		usage_func
+		exit 1
+	fi
+	else
+	usage_func
+	exit 1
+fi

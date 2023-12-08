@@ -1,0 +1,4 @@
+[Satellite]
+server = example.com
+user   = admin
+password   = password
